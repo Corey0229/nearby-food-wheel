@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>附近食物轉盤</title>
+  <meta name="description" content="用附近公開地圖資料快速抽選今天要吃什麼。" />
+  <style>
+    :root {
+      --bg: #f7f4ef;
+      --surface: #ffffff;
+      --surface-soft: #fbfaf7;
+      --text: #171512;
+      --muted: #77716a;
+      --muted-2: #a09a92;
+      --line: rgba(23, 21, 18, .10);
+      --line-strong: rgba(23, 21, 18, .16);
+      --accent: #111111;
+      --accent-2: #f26a2e;
+      --success: #16804d;
+      --warning: #8a6b18;
+      --danger: #a83b2d;
+      --shadow: 0 24px 70px rgba(38, 30, 22, .10);
+      --shadow-soft: 0 10px 34px rgba(38, 30, 22, .08);
+      --radius-xl: 32px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(242, 106, 46, .13), transparent 32rem),
+        radial-gradient(circle at 88% 12%, rgba(23, 21, 18, .08), transparent 28rem),
+        var(--bg);
+    }
+
+    button, select, input { font: inherit; }
+    button, a, select, input { -webkit-tap-highlight-color: transparent; }
+    a { color: inherit; }
+
+    .app {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 36px;
+    }
+
+    .topbar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 750;
+      letter-spacing: -.02em;
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .source-link {
+      color: var(--muted);
+      font-size: .9rem;
+      text-decoration: none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.62);
+      border-radius: 999px;
+      padding: 8px 12px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(2.35rem, 7vw, 5.6rem);
+      line-height: .92;
+      letter-spacing: -.075em;
+      max-width: 820px;
+    }
+
+    .hero p {
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 2vw, 1.12rem);
+      line-height: 1.65;
+      max-width: 620px;
+    }
+
+    .quick-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      min-height: 46px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 700;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease, opacity .18s ease;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 14px 30px rgba(0,0,0,.16); }
+    .btn-secondary { background: #fff; color: var(--text); border: 1px solid var(--line-strong); }
+    .btn-quiet { background: rgba(255,255,255,.68); color: var(--text); border: 1px solid var(--line); }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.68);
+      backdrop-filter: blur(18px);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+    .field span {
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 700;
+      padding-left: 2px;
+    }
+    select, input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 11px 12px;
+      outline: none;
+    }
+    select:focus, input[type="text"]:focus { border-color: rgba(0,0,0,.32); box-shadow: 0 0 0 4px rgba(0,0,0,.06); }
+
+    .toggle {
+      height: 100%;
+      min-height: 62px;
+      display: flex;
+      align-items: end;
+    }
+    .checkbox {
+      width: 100%;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 9px 10px;
+      font-size: .92rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .manual {
+      display: none;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      margin: 0 0 16px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.68);
+      border-radius: var(--radius-lg);
+    }
+    .manual.show { display: grid; }
+
+    .status-bar {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      color: var(--muted);
+      font-size: .92rem;
+      margin-bottom: 16px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--muted-2);
+      flex: 0 0 auto;
+    }
+    .status-content {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+    .count-pill {
+      color: var(--text);
+      font-weight: 760;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      white-space: nowrap;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(360px, .92fr) minmax(0, 1.08fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: rgba(255,255,255,.82);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .wheel-panel { padding: clamp(18px, 4vw, 30px); }
+    .wheel-shell {
+      aspect-ratio: 1;
+      width: min(100%, 560px);
+      margin: 0 auto;
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
+    .pointer {
+      position: absolute;
+      top: -2px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 4;
+      width: 0;
+      height: 0;
+      border-left: 14px solid transparent;
+      border-right: 14px solid transparent;
+      border-top: 24px solid var(--accent);
+      filter: drop-shadow(0 8px 10px rgba(0,0,0,.16));
+    }
+    #wheel {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: conic-gradient(from -90deg, #f1eee7, #ffffff, #f1eee7);
+      border: 12px solid #fff;
+      box-shadow: inset 0 0 0 1px var(--line), 0 24px 70px rgba(0,0,0,.10);
+      position: relative;
+      overflow: hidden;
+      transition: transform 4.2s cubic-bezier(.1,.76,.12,1);
+    }
+    #wheel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: radial-gradient(circle at 34% 26%, rgba(255,255,255,.58), transparent 28%), radial-gradient(circle, transparent 58%, rgba(0,0,0,.07));
+      pointer-events: none;
+    }
+    .wheel-label {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform-origin: 0 0;
+      width: 46%;
+      padding-left: 58%;
+      font-size: clamp(.62rem, 1.2vw, .82rem);
+      line-height: 1.15;
+      font-weight: 760;
+      color: rgba(23,21,18,.82);
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      z-index: 2;
+    }
+    .wheel-center {
+      position: absolute;
+      width: 31%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: #fff;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 16px;
+      z-index: 3;
+      font-weight: 850;
+      letter-spacing: -.03em;
+      box-shadow: 0 12px 32px rgba(0,0,0,.12);
+    }
+    .spin-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+
+    .result {
+      display: none;
+      margin-top: 20px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+      border-radius: var(--radius-lg);
+    }
+    .result.show { display: block; }
+    .result-kicker {
+      margin: 0 0 5px;
+      color: var(--muted);
+      font-size: .82rem;
+      font-weight: 750;
+    }
+    .result h2 {
+      margin: 0 0 12px;
+      font-size: clamp(1.45rem, 4vw, 2.35rem);
+      letter-spacing: -.045em;
+      line-height: 1.05;
+    }
+
+    .list-panel { min-height: 540px; }
+    .list-head {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px;
+      background: rgba(255,255,255,.9);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+    }
+    .list-head h2 { margin: 0; font-size: 1.08rem; letter-spacing: -.02em; }
+    .places {
+      max-height: 690px;
+      overflow: auto;
+      padding: 10px;
+    }
+    .place {
+      padding: 14px;
+      border-radius: 20px;
+      background: transparent;
+      border: 1px solid transparent;
+      transition: background .16s ease, border-color .16s ease;
+    }
+    .place + .place { margin-top: 4px; }
+    .place:hover { background: var(--surface-soft); border-color: var(--line); }
+    .place strong {
+      display: block;
+      font-size: 1rem;
+      letter-spacing: -.02em;
+      margin-bottom: 5px;
+    }
+    .place small {
+      display: block;
+      color: var(--muted);
+      line-height: 1.45;
+      margin-bottom: 10px;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-items: center;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--muted);
+      background: #f0eee9;
+    }
+    .tag.green { color: var(--success); background: rgba(22,128,77,.10); }
+    .tag.gray { color: var(--muted); background: #f1efeb; }
+    .tag.red { color: var(--danger); background: rgba(168,59,45,.10); }
+    .place-actions, .result-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .link-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      text-decoration: none;
+      font-size: .86rem;
+      font-weight: 700;
+    }
+    .empty {
+      min-height: 430px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      padding: 24px;
+      line-height: 1.6;
+    }
+
+    footer {
+      margin-top: 20px;
+      color: var(--muted-2);
+      font-size: .8rem;
+      text-align: center;
+    }
+    footer a { color: inherit; text-decoration: none; border-bottom: 1px solid rgba(160,154,146,.45); }
+
+    @media (max-width: 940px) {
+      .hero { grid-template-columns: 1fr; align-items: start; }
+      .quick-actions { justify-content: flex-start; }
+      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .toggle { min-height: auto; align-items: center; }
+      .workspace { grid-template-columns: 1fr; }
+      .list-panel { min-height: auto; }
+      .places { max-height: none; }
+    }
+
+    @media (max-width: 560px) {
+      .app { width: min(100% - 22px, 1180px); padding-top: 16px; }
+      .topbar { height: auto; align-items: flex-start; }
+      .source-link { display: none; }
+      .filters { grid-template-columns: 1fr; }
+      .manual { grid-template-columns: 1fr; }
+      .status-bar { align-items: flex-start; flex-direction: column; }
+      .wheel-panel { padding: 14px; border-radius: 24px; }
+      .panel { border-radius: 24px; }
+      .wheel-center { font-size: .9rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <nav class="topbar" aria-label="頁首">
+      <div class="brand"><span class="brand-mark">🍽</span><span>附近食物轉盤</span></div>
+      <a class="source-link" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+    </nav>
+
+    <section class="hero">
+      <div>
+        <h1>今天吃哪間？</h1>
+        <p>用附近公開地圖資料建立候選清單，一鍵抽出現在可以出發的選項。</p>
+      </div>
+      <div class="quick-actions">
+        <button class="btn btn-primary" id="locateBtn">找附近食物</button>
+        <button class="btn btn-secondary" id="manualBtn">輸入座標</button>
+      </div>
+    </section>
+
+    <section class="filters" aria-label="篩選條件">
+      <label class="field"><span>範圍</span>
+        <select id="radiusSelect">
+          <option value="300">300 公尺</option>
+          <option value="500" selected>500 公尺</option>
+          <option value="800">800 公尺</option>
+          <option value="1200">1.2 公里</option>
+        </select>
+      </label>
+      <label class="field"><span>類型</span>
+        <select id="typeSelect">
+          <option value="all" selected>全部</option>
+          <option value="restaurant">餐廳</option>
+          <option value="fast_food">速食 / 小吃</option>
+          <option value="cafe">咖啡輕食</option>
+          <option value="food_court">美食街</option>
+          <option value="ice_cream">甜點冰品</option>
+        </select>
+      </label>
+      <label class="field"><span>營業</span>
+        <select id="openSelect">
+          <option value="open" selected>營業中</option>
+          <option value="open_or_unknown">營業中或未知</option>
+          <option value="all">全部</option>
+        </select>
+      </label>
+      <label class="field"><span>排序</span>
+        <select id="sortSelect">
+          <option value="distance" selected>距離</option>
+          <option value="name">店名</option>
+          <option value="type">類型</option>
+        </select>
+      </label>
+      <div class="toggle">
+        <label class="checkbox"><input type="checkbox" id="hasMenuOnly" /> 有連結</label>
+      </div>
+    </section>
+
+    <section class="manual" id="manualBox" aria-label="手動座標">
+      <input type="text" id="manualInput" placeholder="25.0330,121.5654" inputmode="decimal" />
+      <button class="btn btn-secondary" id="manualSearchBtn">搜尋</button>
+    </section>
+
+    <section class="status-bar" aria-live="polite">
+      <div class="status-content"><span class="status-dot" id="statusDot"></span><span id="status">準備就緒</span></div>
+      <div class="count-pill" id="count">0 間</div>
+    </section>
+
+    <section class="workspace">
+      <section class="panel wheel-panel" aria-label="轉盤">
+        <div class="wheel-shell">
+          <div class="pointer" aria-hidden="true"></div>
+          <div id="wheel"></div>
+          <div class="wheel-center" id="wheelCenter">開始搜尋</div>
+        </div>
+        <div class="spin-actions">
+          <button class="btn btn-primary" id="spinBtn" disabled>轉一下</button>
+          <button class="btn btn-quiet" id="rerollBtn" disabled>排除重抽</button>
+        </div>
+        <article class="result" id="resultCard" aria-live="polite"></article>
+      </section>
+
+      <section class="panel list-panel" aria-label="候選清單">
+        <div class="list-head">
+          <h2>候選清單</h2>
+          <span class="tag" id="listMode">尚未搜尋</span>
+        </div>
+        <div class="places" id="places">
+          <div class="empty">點選「找附近食物」開始。</div>
+        </div>
+      </section>
+    </section>
+
+    <footer>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></footer>
+  </main>
+
+  <script>
+    const OVERPASS_ENDPOINTS = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://overpass.openstreetmap.ru/api/interpreter'
+    ];
+
+    const foodAmenities = ['restaurant', 'fast_food', 'cafe', 'food_court', 'ice_cream', 'biergarten', 'pub', 'bar'];
+    const amenityLabel = {
+      restaurant: '餐廳', fast_food: '速食 / 小吃', cafe: '咖啡輕食', food_court: '美食街',
+      ice_cream: '甜點冰品', biergarten: '啤酒花園', pub: '酒吧餐館', bar: '酒吧'
+    };
+    const palette = ['#f3b36b', '#f27a3d', '#f6d7a9', '#eec78f', '#ffb48a', '#f1dfc0', '#eaa56a', '#f8ede0'];
+
+    const state = {
+      coords: null,
+      rawPlaces: [],
+      places: [],
+      excludedIds: new Set(),
+      currentRotation: 0,
+      lastPick: null,
+      spinning: false
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      locateBtn: $('locateBtn'), manualBtn: $('manualBtn'), manualBox: $('manualBox'), manualInput: $('manualInput'), manualSearchBtn: $('manualSearchBtn'),
+      radiusSelect: $('radiusSelect'), typeSelect: $('typeSelect'), openSelect: $('openSelect'), sortSelect: $('sortSelect'), hasMenuOnly: $('hasMenuOnly'),
+      status: $('status'), statusDot: $('statusDot'), places: $('places'), count: $('count'), listMode: $('listMode'), wheel: $('wheel'), wheelCenter: $('wheelCenter'), spinBtn: $('spinBtn'), rerollBtn: $('rerollBtn'), resultCard: $('resultCard')
+    };
+
+    function setStatus(message, tone = 'neutral') {
+      els.status.textContent = message;
+      const color = tone === 'success' ? 'var(--success)' : tone === 'error' ? 'var(--danger)' : tone === 'loading' ? 'var(--accent-2)' : 'var(--muted-2)';
+      els.statusDot.style.background = color;
+    }
+    function escapeHtml(str = '') { return String(str).replace(/[&<>'"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[s])); }
+    function toRad(v) { return v * Math.PI / 180; }
+    function distanceMeters(a, b) {
+      const R = 6371000;
+      const dLat = toRad(b.lat - a.lat);
+      const dLon = toRad(b.lon - a.lon);
+      const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+      const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+      return Math.round(R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x)));
+    }
+    function formatDistance(m) { return m < 1000 ? `${m} m` : `${(m/1000).toFixed(1)} km`; }
+
+    function buildQuery(lat, lon, radius) {
+      const amenityRegex = foodAmenities.join('|');
+      return `[out:json][timeout:25];\n(\n  node["amenity"~"^(${amenityRegex})$"](around:${radius},${lat},${lon});\n  way["amenity"~"^(${amenityRegex})$"](around:${radius},${lat},${lon});\n  relation["amenity"~"^(${amenityRegex})$"](around:${radius},${lat},${lon});\n);\nout center tags;`;
+    }
+
+    async function fetchOverpass(lat, lon, radius) {
+      const query = buildQuery(lat, lon, radius);
+      let lastError;
+      for (const endpoint of OVERPASS_ENDPOINTS) {
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: new URLSearchParams({ data: query })
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return await res.json();
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError || new Error('查詢失敗');
+    }
+
+    function normalizePlace(el) {
+      const tags = el.tags || {};
+      const lat = el.lat ?? el.center?.lat;
+      const lon = el.lon ?? el.center?.lon;
+      if (!lat || !lon) return null;
+      const name = tags['name:zh-Hant'] || tags['name:zh'] || tags.name || tags['name:en'] || '';
+      if (!name) return null;
+      const id = `${el.type}-${el.id}`;
+      const dist = state.coords ? distanceMeters({ lat: state.coords.lat, lon: state.coords.lon }, { lat, lon }) : 0;
+      const website = tags.website || tags.contact_website || tags['contact:website'] || tags.url || tags.menu || tags['menu:website'];
+      const opening = tags.opening_hours || tags['opening_hours:kitchen'] || '';
+      const openInfo = getOpenInfo(opening);
+      return { id, name, lat, lon, distance: dist, amenity: tags.amenity || 'food', cuisine: tags.cuisine || '', opening, openStatus: openInfo.status, openText: openInfo.text, website, tags };
+    }
+
+    function getOpenInfo(opening) {
+      if (!opening) return { status: 'unknown', text: '營業未知' };
+      const s = opening.trim();
+      if (/^24\/7$/i.test(s)) return { status: 'open', text: '24 小時' };
+      if (/off|closed/i.test(s) && !/;/i.test(s)) return { status: 'closed', text: '未營業' };
+      const simple = parseSimpleOpeningHours(s);
+      if (simple) return simple;
+      return { status: 'unknown', text: '需確認' };
+    }
+
+    function parseSimpleOpeningHours(s) {
+      const now = new Date();
+      const day = (now.getDay() + 6) % 7;
+      const current = now.getHours() * 60 + now.getMinutes();
+      const dayMap = { Mo:0, Tu:1, We:2, Th:3, Fr:4, Sa:5, Su:6 };
+      const parts = s.split(';').map(p => p.trim()).filter(Boolean);
+
+      for (const part of parts) {
+        const timeMatch = part.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+        if (!timeMatch) continue;
+        const beforeTime = part.slice(0, timeMatch.index).trim();
+        let applies = false;
+        if (!beforeTime) applies = true;
+        const range = beforeTime.match(/(Mo|Tu|We|Th|Fr|Sa|Su)\s*-\s*(Mo|Tu|We|Th|Fr|Sa|Su)/);
+        if (range) {
+          const start = dayMap[range[1]], end = dayMap[range[2]];
+          applies = start <= end ? day >= start && day <= end : day >= start || day <= end;
+        } else {
+          const days = beforeTime.match(/Mo|Tu|We|Th|Fr|Sa|Su/g) || [];
+          applies = days.length ? days.some(d => dayMap[d] === day) : applies;
+        }
+        if (!applies) continue;
+        const [sh, sm] = timeMatch[1].split(':').map(Number);
+        const [eh, em] = timeMatch[2].split(':').map(Number);
+        const startMin = sh * 60 + sm;
+        const endMin = eh * 60 + em;
+        const isOpen = endMin >= startMin ? current >= startMin && current <= endMin : current >= startMin || current <= endMin;
+        return { status: isOpen ? 'open' : 'closed', text: isOpen ? `營業中 ${timeMatch[1]}-${timeMatch[2]}` : `未營業 ${timeMatch[1]}-${timeMatch[2]}` };
+      }
+      return null;
+    }
+
+    function applyFilters() {
+      const type = els.typeSelect.value;
+      const open = els.openSelect.value;
+      const hasMenuOnly = els.hasMenuOnly.checked;
+      let arr = state.rawPlaces.filter(p => !state.excludedIds.has(p.id));
+      if (type !== 'all') arr = arr.filter(p => p.amenity === type);
+      if (open === 'open') arr = arr.filter(p => p.openStatus === 'open');
+      if (open === 'open_or_unknown') arr = arr.filter(p => p.openStatus === 'open' || p.openStatus === 'unknown');
+      if (hasMenuOnly) arr = arr.filter(p => !!p.website);
+      const sort = els.sortSelect.value;
+      arr.sort((a, b) => {
+        if (sort === 'name') return a.name.localeCompare(b.name, 'zh-Hant');
+        if (sort === 'type') return (a.amenity || '').localeCompare(b.amenity || '') || a.distance - b.distance;
+        return a.distance - b.distance;
+      });
+      state.places = arr;
+      renderPlaces();
+      renderWheel();
+      els.spinBtn.disabled = arr.length === 0 || state.spinning;
+      els.rerollBtn.disabled = !state.lastPick || state.spinning;
+    }
+
+    function statusTag(p) {
+      if (p.openStatus === 'open') return '<span class="tag green">營業中</span>';
+      if (p.openStatus === 'closed') return '<span class="tag red">未營業</span>';
+      return '<span class="tag gray">未知</span>';
+    }
+
+    function renderPlaces() {
+      els.count.textContent = `${state.places.length} 間`;
+      els.listMode.textContent = state.rawPlaces.length ? `${state.places.length} / ${state.rawPlaces.length}` : '尚未搜尋';
+      if (!state.places.length) {
+        const text = state.rawPlaces.length ? '沒有符合條件的店家。' : '點選「找附近食物」開始。';
+        els.places.innerHTML = `<div class="empty">${text}</div>`;
+        return;
+      }
+      els.places.innerHTML = state.places.map(p => {
+        const cuisine = p.cuisine ? `<span class="tag">${escapeHtml(p.cuisine.replaceAll(';', ' / '))}</span>` : '';
+        const website = p.website ? `<a class="link-btn" href="${escapeHtml(p.website)}" target="_blank" rel="noopener">網站</a>` : '';
+        return `<article class="place">
+          <strong>${escapeHtml(p.name)}</strong>
+          <small>${escapeHtml(amenityLabel[p.amenity] || p.amenity)}・${formatDistance(p.distance)}・${escapeHtml(p.openText)}</small>
+          <div class="meta">${statusTag(p)}${cuisine}</div>
+          <div class="place-actions">
+            <a class="link-btn" href="${mapsUrl(p)}" target="_blank" rel="noopener">地圖</a>
+            ${website}
+          </div>
+        </article>`;
+      }).join('');
+    }
+
+    function renderWheel() {
+      const arr = state.places.slice(0, 28);
+      if (!arr.length) {
+        els.wheel.style.background = 'conic-gradient(from -90deg, #f1eee7, #ffffff, #f1eee7)';
+        els.wheel.innerHTML = '';
+        els.wheelCenter.textContent = state.rawPlaces.length ? '無候選' : '開始搜尋';
+        return;
+      }
+      const step = 360 / arr.length;
+      const gradient = arr.map((_, i) => `${palette[i % palette.length]} ${i * step}deg ${(i + 1) * step}deg`).join(', ');
+      els.wheel.style.background = `conic-gradient(from -90deg, ${gradient})`;
+      els.wheel.innerHTML = arr.map((p, i) => {
+        const angle = i * step + step / 2 - 90;
+        return `<div class="wheel-label" style="transform: rotate(${angle}deg) translateY(-50%);">${escapeHtml(p.name)}</div>`;
+      }).join('');
+      els.wheelCenter.textContent = `${state.places.length} 間`;
+    }
+
+    function mapsUrl(p) {
+      const q = encodeURIComponent(`${p.name} ${p.lat},${p.lon}`);
+      return `https://www.google.com/maps/search/?api=1&query=${q}`;
+    }
+
+    async function searchNearby(lat, lon) {
+      state.coords = { lat, lon };
+      state.excludedIds.clear();
+      state.lastPick = null;
+      els.resultCard.classList.remove('show');
+      els.rerollBtn.disabled = true;
+      const radius = Number(els.radiusSelect.value);
+      setStatus('搜尋中', 'loading');
+      els.locateBtn.disabled = true;
+      els.spinBtn.disabled = true;
+      try {
+        const data = await fetchOverpass(lat, lon, radius);
+        const map = new Map();
+        for (const el of data.elements || []) {
+          const p = normalizePlace(el);
+          if (p && !map.has(p.id)) map.set(p.id, p);
+        }
+        state.rawPlaces = [...map.values()];
+        setStatus(`找到 ${state.rawPlaces.length} 間`, 'success');
+        applyFilters();
+      } catch (err) {
+        console.error(err);
+        setStatus('查詢失敗，請稍後再試', 'error');
+        state.rawPlaces = [];
+        applyFilters();
+      } finally {
+        els.locateBtn.disabled = false;
+      }
+    }
+
+    function locate() {
+      if (!navigator.geolocation) {
+        setStatus('瀏覽器不支援定位', 'error');
+        return;
+      }
+      setStatus('取得位置中', 'loading');
+      navigator.geolocation.getCurrentPosition(
+        pos => searchNearby(pos.coords.latitude, pos.coords.longitude),
+        () => setStatus('定位失敗，請改用座標', 'error'),
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+      );
+    }
+
+    function spin() {
+      if (!state.places.length || state.spinning) return;
+      const visible = state.places.slice(0, 28);
+      const pickIndex = Math.floor(Math.random() * visible.length);
+      const step = 360 / visible.length;
+      const targetCenter = pickIndex * step + step / 2;
+      const extra = 360 * (5 + Math.floor(Math.random() * 3));
+      state.currentRotation += extra + (360 - targetCenter) - (state.currentRotation % 360);
+      state.spinning = true;
+      els.spinBtn.disabled = true;
+      els.rerollBtn.disabled = true;
+      els.wheel.style.transform = `rotate(${state.currentRotation}deg)`;
+      window.setTimeout(() => {
+        state.spinning = false;
+        const pick = visible[pickIndex];
+        state.lastPick = pick;
+        showResult(pick);
+        els.spinBtn.disabled = state.places.length === 0;
+        els.rerollBtn.disabled = false;
+      }, 4300);
+    }
+
+    function showResult(p) {
+      const cuisine = p.cuisine ? `<span class="tag">${escapeHtml(p.cuisine.replaceAll(';', ' / '))}</span>` : '';
+      const website = p.website ? `<a class="btn btn-secondary" href="${escapeHtml(p.website)}" target="_blank" rel="noopener">網站</a>` : '';
+      els.resultCard.innerHTML = `<p class="result-kicker">抽選結果</p>
+        <h2>${escapeHtml(p.name)}</h2>
+        <div class="meta">
+          <span class="tag">${escapeHtml(amenityLabel[p.amenity] || p.amenity)}</span>
+          <span class="tag">${formatDistance(p.distance)}</span>
+          ${statusTag(p)}
+          ${cuisine}
+        </div>
+        <div class="result-actions">
+          <a class="btn btn-primary" href="${mapsUrl(p)}" target="_blank" rel="noopener">開啟地圖</a>
+          ${website}
+        </div>`;
+      els.resultCard.classList.add('show');
+      els.wheelCenter.textContent = '選好了';
+    }
+
+    function rerollExclude() {
+      if (!state.lastPick) return;
+      state.excludedIds.add(state.lastPick.id);
+      state.lastPick = null;
+      els.resultCard.classList.remove('show');
+      applyFilters();
+      if (state.places.length) spin();
+    }
+
+    function parseManualCoords(value) {
+      const m = value.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+      if (!m) return null;
+      const lat = Number(m[1]), lon = Number(m[2]);
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+      return { lat, lon };
+    }
+
+    els.locateBtn.addEventListener('click', locate);
+    els.manualBtn.addEventListener('click', () => els.manualBox.classList.toggle('show'));
+    els.manualSearchBtn.addEventListener('click', () => {
+      const coords = parseManualCoords(els.manualInput.value);
+      if (!coords) { setStatus('座標格式錯誤', 'error'); return; }
+      searchNearby(coords.lat, coords.lon);
+    });
+    [els.typeSelect, els.openSelect, els.sortSelect, els.hasMenuOnly].forEach(el => el.addEventListener('change', applyFilters));
+    els.radiusSelect.addEventListener('change', () => {
+      if (state.coords) searchNearby(state.coords.lat, state.coords.lon);
+    });
+    els.spinBtn.addEventListener('click', spin);
+    els.rerollBtn.addEventListener('click', rerollExclude);
+  </script>
+</body>
+</html>
